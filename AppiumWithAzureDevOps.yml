@@ -1,0 +1,46 @@
+trigger:
+- main
+
+pool:
+  name: 'Default'  # Replace 'Default' with the name of your local agent pool
+  demands: # Optional, add if your agent has specific capabilities
+    - agent.name -equals 'MyLocalAgent'  # Replace 'MyLocalAgent' with the actual name of your agent
+
+variables:
+  APPIUM_SYSTEM_PORT: 4723
+
+stages:
+- stage: Build
+  jobs:
+  - job: BuildAndTest
+    steps:
+
+    # Use Maven to clean and install the project (assuming it's installed locally)
+    - script: |
+        mvn clean install -q
+      displayName: 'Build with Maven'
+
+    # Start Appium session in the background
+    - script: |
+        appium --relaxed-security --log-level error --session-override --port $(APPIUM_SYSTEM_PORT) &
+        sleep 10
+        echo "Appium has started"
+      displayName: 'Start Appium Session'
+
+    # Execute the jar file with the defined options
+    - script: |
+        java -jar target/file.jar \
+        --plugin pretty \
+        --plugin json:target/cucumber-reports/cucumber.json \
+        --plugin html:target/cucumber-reports \
+        --plugin rerun:target/rerun.txt \
+        --glue path/to/steps_definition \
+        --monochrome \
+        --tags "@feature1,@feature2" \
+        --tags ~@ignoredTags path/to/features
+      displayName: 'Execute Tests'
+
+    # Terminate all Appium processes
+    - script: |
+        kill $(ps -ef | grep "appium" | grep -v grep | awk '{print $2}')
+      displayName: 'Terminate Appium Process'
